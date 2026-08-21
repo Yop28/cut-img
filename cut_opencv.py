@@ -1,5 +1,6 @@
 import sys
 import os
+import math
 import cv2
 import numpy as np
 
@@ -15,6 +16,31 @@ import numpy as np
 PROJ_STD_THRESHOLD = 10   # std < 이 값이면 단색 경계선 행/열로 판단
 PROJ_MIN_THICKNESS = 2    # 경계선으로 인정할 최소 연속 px 수 (노이즈 방지)
 SMOOTH_WINDOW      = 5    # 이동평균 스무딩 윈도우 크기 (노이즈 행/열 무시)
+
+TARGET_W = 2752           # 최종 출력 가로 픽셀
+TARGET_H = 1536           # 최종 출력 세로 픽셀
+
+
+# ─────────────────────────────────────────────────────────────────
+# 리사이즈 + 좌상단 크롭 → TARGET_W × TARGET_H
+# ─────────────────────────────────────────────────────────────────
+def resize_and_crop(panel: np.ndarray,
+                    target_w: int = TARGET_W,
+                    target_h: int = TARGET_H) -> np.ndarray:
+    """비율 유지 스케일 후 좌상단 기준 크롭하여 target_w × target_h 반환.
+
+    - 업스케일/다운스케일 모두 지원 (max scale 기준으로 꽉 채움).
+    - 다운스케일: cv2.INTER_LANCZOS4 (최고 화질)
+    - 업스케일:   cv2.INTER_LANCZOS4
+    """
+    h, w = panel.shape[:2]
+    scale = max(target_w / w, target_h / h)
+    new_w = math.ceil(w * scale)
+    new_h = math.ceil(h * scale)
+    interp = cv2.INTER_LANCZOS4
+    resized = cv2.resize(panel, (new_w, new_h), interpolation=interp)
+    # 좌상단 기준 크롭 (오른쪽/아래 잘라냄)
+    return resized[:target_h, :target_w]
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -273,6 +299,9 @@ def process_image(img_path, output_dir, grid_m, grid_n, start_counter, aspect_ra
         # 비율 크롭
         if aspect_ratio:
             p = apply_aspect_ratio(p, aspect_ratio)
+
+        # 최종 2752×1536 리사이즈 + 좌상단 크롭 (Lanczos 최고 화질)
+        p = resize_and_crop(p)
 
         out_file = os.path.join(output_dir, f"img-{counter:03d}.jpg")
         cv2.imwrite(out_file, p)

@@ -5,7 +5,7 @@
 # ============================================================
 
 # ─────────────────────── 설정값 ────────────────────────────
-FOLDER_PATH="/media/u/B62F9460757288E21/Work/신약/신3C#/imgs/refs/openart-download/신3C#-pick/section-4"   # 처리할 이미지 폴더 경로
+FOLDER_PATH="/run/media/u/B62F9460757288E2/Work/신약/7C#/images/pre-work/4/openart-download"   # 처리할 이미지 폴더 경로
 GRID_M=2                              # 가로 열 수 (columns)
 GRID_N=2                              # 세로 행 수 (rows)
 ASPECT_RATIO="16:9"                   # 결과물 비율 강제 (빈 문자열이면 무시, 예: 16:9)
@@ -201,6 +201,16 @@ for IMG_PATH in "${IMAGE_FILES[@]}"; do
                     log_error "${IMG_NAME} - 샷 분리/여백제거 실패 (row=${row}, col=${col}). 건너뜁니다."
                     continue
                 fi
+                # 최종 2752×1536 리사이즈 + 좌상단 크롭 (Lanczos 최고 화질)
+                if ! convert "${OUT_FILE}" \
+                        -filter Lanczos \
+                        -resize "2752x1536^" \
+                        -gravity NorthWest \
+                        -extent 2752x1536 \
+                        "${OUT_FILE}" 2>/dev/null; then
+                    log_error "${IMG_NAME} - 리사이즈/크롭 실패 (row=${row}, col=${col}). 건너뜁니다."
+                    continue
+                fi
             else
                 # s1: 기본 분할 → shave → 비율 크롭
                 if ! convert "${IMG_PATH}[0]" \
@@ -210,6 +220,16 @@ for IMG_PATH in "${IMAGE_FILES[@]}"; do
                         "${CROP_RATIO_CMD[@]}" \
                         "${OUT_FILE}" 2>/dev/null; then
                     log_error "${IMG_NAME} - 샷 분리 실패 (row=${row}, col=${col}). 건너뜁니다."
+                    continue
+                fi
+                # 최종 2752×1536 리사이즈 + 좌상단 크롭 (Lanczos 최고 화질)
+                if ! convert "${OUT_FILE}" \
+                        -filter Lanczos \
+                        -resize "2752x1536^" \
+                        -gravity NorthWest \
+                        -extent 2752x1536 \
+                        "${OUT_FILE}" 2>/dev/null; then
+                    log_error "${IMG_NAME} - 리사이즈/크롭 실패 (row=${row}, col=${col}). 건너뜁니다."
                     continue
                 fi
             fi
