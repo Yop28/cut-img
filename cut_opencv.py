@@ -303,9 +303,9 @@ def process_image(img_path, output_dir, grid_m, grid_n, start_counter, aspect_ra
         # 최종 2752×1536 리사이즈 + 좌상단 크롭 (Lanczos 최고 화질)
         p = resize_and_crop(p)
 
-        out_file = os.path.join(output_dir, f"img-{counter:03d}.jpg")
+        out_file = os.path.join(output_dir, f"img-{counter:03d}.png")
         cv2.imwrite(out_file, p)
-        print(f"  → 저장: img-{counter:03d}.jpg", file=sys.stderr)
+        print(f"  → 저장: img-{counter:03d}.png", file=sys.stderr)
         counter += 1
 
     # bash가 읽을 다음 카운터 출력

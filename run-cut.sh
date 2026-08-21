@@ -11,10 +11,16 @@ GRID_N=2                              # 세로 행 수 (rows)
 ASPECT_RATIO="16:9"                   # 결과물 비율 강제 (빈 문자열이면 무시, 예: 16:9)
 # ────────────────────────────────────────────────────────────
 
-# ── 옵션 파싱 (기본값 s1, s2의 기본 fuzz는 10%)
-MODE="s1"
-TRIM_FUZZ="10%"
-SHAVE_PX=0          # -shave N 옵션 기본값 (0=비활성)
+# ── 옵션 파싱 (기본값: 옵션 없이 실행 시 -s2 10 -shave 10 과 동일하게 동작)
+if [[ $# -eq 0 ]]; then
+  MODE="s2"
+  TRIM_FUZZ="10%"
+  SHAVE_PX=10
+else
+  MODE="s1"
+  TRIM_FUZZ="10%"
+  SHAVE_PX=0          # -shave N 옵션 기본값 (0=비활성)
+fi
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -80,6 +86,9 @@ fi
 
 # ── 출력 폴더 생성
 mkdir -p "${OUTPUT_DIR}"
+
+# ── 기존 .jpg 잔여 파일 정리 (PNG 저장으로 전환됨)
+find "${OUTPUT_DIR}" -maxdepth 1 -name "img-*.jpg" -delete 2>/dev/null || true
 
 # ── 로그 함수
 log_error() {
@@ -174,7 +183,8 @@ for IMG_PATH in "${IMAGE_FILES[@]}"; do
         for (( col=0; col<GRID_M; col++ )); do
             OFFSET_X=$(( col * CELL_W ))
             OFFSET_Y=$(( row * CELL_H ))
-            OUT_FILE="${OUTPUT_DIR}/img-$(printf '%03d' "${COUNTER}").jpg"
+            TEMP_FILE="${OUTPUT_DIR}/img-$(printf '%03d' "${COUNTER}")_tmp.png"
+            OUT_FILE="${OUTPUT_DIR}/img-$(printf '%03d' "${COUNTER}").png"
 
             # 비율 강제(Center Crop) 로직 추가
             CROP_RATIO_CMD=()
@@ -190,48 +200,52 @@ for IMG_PATH in "${IMAGE_FILES[@]}"; do
 
             # 분기 처리
             if [[ "$MODE" == "s2" ]]; then
-                # s2: 자른 후 자동 여백 제거(-trim) → shave → 비율 크롭
+                # s2: 자른 후 자동 여백 제거(-trim) → shave → 비율 크롭 → PNG 임시 저장
                 if ! convert "${IMG_PATH}[0]" \
                         -crop "${CELL_W}x${CELL_H}+${OFFSET_X}+${OFFSET_Y}" \
                         +repage \
                         -fuzz "${TRIM_FUZZ}" -trim +repage \
                         "${SHAVE_CMD[@]}" \
                         "${CROP_RATIO_CMD[@]}" \
-                        "${OUT_FILE}" 2>/dev/null; then
+                        "${TEMP_FILE}" 2>/dev/null; then
                     log_error "${IMG_NAME} - 샷 분리/여백제거 실패 (row=${row}, col=${col}). 건너뜁니다."
                     continue
                 fi
-                # 최종 2752×1536 리사이즈 + 좌상단 크롭 (Lanczos 최고 화질)
-                if ! convert "${OUT_FILE}" \
+                # 최종 2752×1536 리사이즈 + 좌상단 크롭 → PNG 저장 (무손실 라운드트립)
+                if ! convert "${TEMP_FILE}" \
                         -filter Lanczos \
                         -resize "2752x1536^" \
                         -gravity NorthWest \
                         -extent 2752x1536 \
                         "${OUT_FILE}" 2>/dev/null; then
                     log_error "${IMG_NAME} - 리사이즈/크롭 실패 (row=${row}, col=${col}). 건너뜁니다."
+                    rm -f "${TEMP_FILE}"
                     continue
                 fi
+                rm -f "${TEMP_FILE}"
             else
-                # s1: 기본 분할 → shave → 비율 크롭
+                # s1: 기본 분할 → shave → 비율 크롭 → PNG 임시 저장
                 if ! convert "${IMG_PATH}[0]" \
                         -crop "${CELL_W}x${CELL_H}+${OFFSET_X}+${OFFSET_Y}" \
                         +repage \
                         "${SHAVE_CMD[@]}" \
                         "${CROP_RATIO_CMD[@]}" \
-                        "${OUT_FILE}" 2>/dev/null; then
+                        "${TEMP_FILE}" 2>/dev/null; then
                     log_error "${IMG_NAME} - 샷 분리 실패 (row=${row}, col=${col}). 건너뜁니다."
                     continue
                 fi
-                # 최종 2752×1536 리사이즈 + 좌상단 크롭 (Lanczos 최고 화질)
-                if ! convert "${OUT_FILE}" \
+                # 최종 2752×1536 리사이즈 + 좌상단 크롭 → PNG 저장 (무손실 라운드트립)
+                if ! convert "${TEMP_FILE}" \
                         -filter Lanczos \
                         -resize "2752x1536^" \
                         -gravity NorthWest \
                         -extent 2752x1536 \
                         "${OUT_FILE}" 2>/dev/null; then
                     log_error "${IMG_NAME} - 리사이즈/크롭 실패 (row=${row}, col=${col}). 건너뜁니다."
+                    rm -f "${TEMP_FILE}"
                     continue
                 fi
+                rm -f "${TEMP_FILE}"
             fi
 
             log_info "  → 저장: $(basename "${OUT_FILE}")"
